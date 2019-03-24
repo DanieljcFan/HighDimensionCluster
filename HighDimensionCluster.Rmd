@@ -6,16 +6,19 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = F)
 library(tidyverse)
 library(reshape2)
 library(shallot)
+library(cowplot)
 ```
 
-#1. Simulate high-dimensional data (p=1000) with three groups of observations where the number of observations is n=100 (R code to generate data is here).
+#1. Data simulation
+
+Simulate high-dimensional data (p=1000) with three groups of observations where the number of observations is n=100
 
 ```{r}
-set.seed(2019)
+set.seed(0)
 n_rows = 1000
 n_cols = 100
 n_genes = 1000
@@ -37,42 +40,128 @@ A1 <- samples1 %*% t(proj)
 A1 <- A1 + rnorm(n_genes*n_cells)
 ```
 
-
-
 #2. Perform k-means to identify the number of clusters in the data. 
 
+##kmeans after PCA
+
+The structure of high dimension data is more complicated, so try dimension reduction at first. Perfrom principal component analysis first. Considering the large size of correlation matrix, it is more efficient to perfrom singular value decomposition as the singular value is the square root of eigne value. The below figure shows the explained variance of every single component, it is clear the the first two components contain much more information than others, and the remaining are all at the same level. In that case we can pick the first two components to perform clustering.
+
 ```{r}
-time0 <- Sys.time()
 mysvd <- svd(A1)
-A1_pc <- A1 %*% mysvd$v[,1:2]
-km_pca <- kmeans(A1_pc,3)
-time_pca <- Sys.time() - time0
-
-center <- data.frame(pc1 = km_pca$centers[,1], pc2 = km_pca$centers[,2], label = as.factor(1:3))
-
 qplot(x = c(1:100), y= mysvd$d/sum(mysvd$d) )+geom_line()+geom_point()+
   labs(title='explained variance of componets', x='components',y='explained variance of single component')
+```
 
+
+Based on the scatter plot we can intuitively guess there are three groups, but the pattern is not clear. 
+
+```{r}
+A1_pc <- A1 %*% mysvd$v[,1:2]
 qplot(A1_pc[,1],A1_pc[,2])+labs(title ='scatter plot of first two components',x='component 1', y='compoment 2')
+```
 
+Concerning the Within Cluster Sum of Squares, the information could not explained by clusters decreases rapidly when k increases from 1 to 3, and goes flat with further increasing. This conclusion is more clear than scatter plot.
+
+```{r}
+SSW <- rep(NA,10) 
+for(i in 1:10){
+  SSW[i] <- kmeans(A1_pc,i)$tot.withinss
+}
+qplot(c(1:10),SSW)+geom_line()+geom_point()+
+  labs(title='Within Cluster Sum of Squares for optimal number of clusters', 
+       x='number of clusters',y='Within Cluster Sum of Squares')
+```
+
+For a clear optimal choice of k with defined decison role, AIC and BIC are calculated. Figure below shows the AIC and BIC or different k values. there is a clear minimal value for BIC but not for AIC, and the optimal k based on BIC is 3 which is coordinated with our intuitively guess. So $argmin_k(BIC)$ is taken as the strategy for optimal k. 
+
+```{r}
+AIC <- rep(NA,10)
+BIC <- rep(NA,10)
+for(i in 1:10){
+  km_temp <- kmeans(A1_pc,i)
+  SSW <- km_temp$tot.withinss
+  m = ncol(km_temp$centers)
+  k = nrow(km_temp$centers)
+  n = length(km_temp$cluster)
+  AIC[i] <- SSW + 2*m*k
+  BIC[i] <- SSW + 2*n*m*k
+}
+
+plot_aic <- qplot(c(1:10),AIC)+geom_line()+geom_point()+
+  labs(x='number of clusters',y='AIC')
+
+plot_bic <- qplot(c(1:10),BIC)+geom_line()+geom_point()+
+  labs(x='number of clusters',y='BIC')
+plot_grid(plot_aic, plot_bic,nrow = 1, labels = c("AIC","BIC"))
+```
+
+The cluster results:
+
+```{r}
+K = which.min(BIC) #capital K to distinct with previous small k
+km_pca <- kmeans(A1_pc,K)
+center <- data.frame(pc1 = km_pca$centers[,1], pc2 = km_pca$centers[,2], label = as.factor(1:K))
 data.frame(pc1 = A1_pc[,1], pc2 = A1_pc[,2], label = as.factor(km_pca$cluster)) %>% 
   ggplot( aes(pc1,pc2, color = label))+geom_point()+
   annotate('point', x = km_pca$centers[,1], y = km_pca$centers[,2], size = 5, alpha = 0.5)+
   labs(title ='clustered scatter plot of first two components',x='component 1', y='compoment 2')
+```
 
 
+##kmeans for original data
+
+For compariation we can alse perfom similar clustering for original data without pca. This time we can't make clear data visualization so just Within Cluster Sum of Square, AIC, BIC are calculated.
+
+
+```{r}
+SSW <- rep(NA,10) 
+for(i in 1:10){
+  SSW[i] <- kmeans(A1,i)$tot.withinss
+}
+qplot(c(1:10),SSW)+geom_line()+geom_point()+
+  labs(title='Within cluster Sum of Squares for optimal number of clusters', 
+       x='number of clusters',y='Within cluster Sum of Squares')
 ```
 
 
 ```{r}
-time0 <- Sys.time()
-km <- kmeans(A1, 3)
-time_km <- Sys.time() - time0
+AIC <- rep(NA,10)
+BIC <- rep(NA,10)
+for(i in 1:10){
+  km_temp <- kmeans(A1,i)
+  SSW <- km_temp$tot.withinss
+  m = ncol(km_temp$centers)
+  k = nrow(km_temp$centers)
+  n = length(km_temp$cluster)
+  AIC[i] <- SSW + 2*m*k
+  BIC[i] <- SSW + 2*n*m*k
+}
+
+plot_aic <- qplot(c(1:10),AIC)+geom_line()+geom_point()+
+  labs(x='number of clusters',y='AIC')
+
+plot_bic <- qplot(c(1:10),BIC)+geom_line()+geom_point()+
+  labs(x='number of clusters',y='BIC')
+plot_grid(plot_aic, plot_bic,nrow = 1, labels = c("AIC","BIC"))
 
 ```
 
 
+
+```{r}
+K <- which.min(BIC)
+km <- kmeans(A1, 3)
+```
+
+
 #3. To assess the accuracy, calculate the adjusted rand index and then calculate the within clusters sum of squares. 
+
+##assess the accuracy:
+
+```{r}
+adj.rand.index(comp1, km_pca$cluster)
+
+```
 
 
 ```{r}
@@ -87,9 +176,10 @@ SSE_cluster <- function(X,label){
     X_temp <- X[which(label==l),]
     X_tc <- apply(X_temp, 2, function(x) x-mean(x))
     SSW <- SSW + sum(diag(t(X_tc) %*% X_tc))
-    cat(l, ' ', sum(label==l), ' ', sum(diag(t(X_tc) %*% X_tc)),'\n')
   }
-  return(list(SST = SST, SSW = SSW, ratio = SSW/SST))
+  res <- matrix(c(SSW,SST,SSW/SST) ,ncol = 3)
+  colnames(res) <- c('SSW','SST','Ratio')
+  return(res)
 }
 
 SSE_cluster(A1, km_pca$cluster)
@@ -98,13 +188,65 @@ SSE_cluster(A1, km$cluster)
 
 
 ```{r}
-adj.rand.index(comp1, km_pca$cluster)
 adj.rand.index(comp1, km$cluster)
 ```
+
+
+#Perform 100 times:
+
+```{r}
+Trail <- function(){
+  comp1 <- sample(seq_len(k), prob=prop1, size=n_cols, replace=TRUE)
+  samples1 <- cbind(rnorm(n=n_cols, mean=x_mus[comp1],sd=x_sds[comp1]),
+                    rnorm(n=n_cols, mean=y_mus[comp1],sd=y_sds[comp1]))
+  
+  proj <- matrix(rnorm(n_rows* n_cols), nrow=n_rows, ncol=2)
+  A1 <- samples1 %*% t(proj)
+  A1 <- A1 + rnorm(n_genes*n_cells)
+  
+  res_pca <- Kmean_pca(A1,comp1)
+  colnames(res_pca) <- paste0(colnames(res_pca), '_pca')
+  res_plain <- Kmean_plain(A1,comp1)
+  colnames(res_plain) <- paste0(colnames(res_plain), '_plian')
+  return(cbind(res_pca,res_plain))
+
+}
+
+Kmean_pca <- function(A1,comp1){
+  time0 <- Sys.time()
+  mysvd <- svd(A1)
+  A1_pc <- A1 %*% mysvd$v[,1:2]
+  km_labels <- kmeans(A1_pc,3)$cluster
+  time_ <- Sys.time() - time0
+  SSE <- SSE_cluster(A1, km_labels)
+  randind <- adj.rand.index(comp1, km_labels)
+  res <- matrix(c(randind,SSE,time_),nrow = 1)
+  colnames(res) <- c('randind','SSW','SST','Ratio','time')
+  return(res)
+}
+
+Kmean_plain <- function(A1,comp1){
+  time0 <- Sys.time()
+  km_labels <- kmeans(A1,3)$cluster
+  time_ <- Sys.time() - time0
+  SSE <- SSE_cluster(A1, km_labels)
+  randind <- adj.rand.index(comp1, km_labels)
+  res <- matrix(c(randind,SSE,time_),nrow = 1)
+  colnames(res) <- c('randind','SSW','SST','Ratio','time')
+  return(res)
+}
+
+# t <- 100
+# res <- c()
+# for(i in 1:t){
+#   res <- rbind(res, Trail())
+# }
+
+```
+
 
 #4. Record both metrics. 
 
 Then, create a data visualization summarizing the results. 
-
 
 
