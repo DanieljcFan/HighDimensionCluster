@@ -44,7 +44,7 @@ A1 <- A1 + rnorm(n_genes*n_cells)
 
 ##kmeans after PCA
 
-The structure of high dimension data is more complicated, so try dimension reduction at first. Perfrom principal component analysis first. Considering the large size of correlation matrix, it is more efficient to perfrom singular value decomposition as the singular value is the square root of eigne value. The below figure shows the explained variance of every single component, it is clear the the first two components contain much more information than others, and the remaining are all at the same level. In that case we can pick the first two components to perform clustering.
+The structure of high dimension data is more complicated, so try dimension reduction at first, here Perfrom principal component analysis. Considering the large size of correlation matrix, it is more efficient to perfrom singular value decomposition as the singular value is the square root of eigne value. The below figure shows the explained variance of every single component, it is clear the the first two components contain much more information than others, and the remaining are all at the same level. In that case the first two components could be picked to perform clustering.
 
 ```{r}
 mysvd <- svd(A1)
@@ -53,16 +53,14 @@ qplot(x = c(1:100), y= mysvd$d/sum(mysvd$d) )+geom_line()+geom_point()+
 ```
 
 
-Based on the scatter plot we can intuitively guess there are three groups, but the pattern is not clear. 
 
 ```{r}
 A1_pc <- A1 %*% mysvd$v[,1:2]
 qplot(A1_pc[,1],A1_pc[,2])+labs(title ='scatter plot of first two components',x='component 1', y='compoment 2')
-
-
 ```
 
-Concerning the Within Cluster Sum of Squares, the information could not explained by clusters decreases rapidly when k increases from 1 to 3, and goes flat with further increasing. This conclusion is more clear than scatter plot.
+Based on the scatter plot we can intuitively guess there are three groups, but more regorious analysis is required. 
+
 
 ```{r}
 SSW <- rep(NA,7) 
@@ -74,7 +72,8 @@ qplot(c(1:7),SSW)+geom_line()+geom_point()+
        x='number of clusters',y='Within Cluster Sum of Squares')
 ```
 
-Try to penish parameter by AIC and BIC. Figure below shows the AIC and BIC or different k values. It is quite similar compated with the result without panalty, as the scale of sum of square error is great larger than panalty on parameters. So minimize AIC or BIC is not a good idea to determine k.
+Concerning the Within Cluster Sum of Squares, the information could not explained by clusters decreases rapidly when k increases from 1 to 3, and goes flat with further increasing. Thus the optimal number of cluster should be 3.
+
 
 ```{r}
 AIC <- rep(NA,7)
@@ -96,7 +95,9 @@ plot_bic <- qplot(c(1:7),BIC)+geom_line()+geom_point()+
 plot_grid(plot_aic, plot_bic,nrow = 1, labels = c("AIC","BIC"))
 ```
 
-Since AIC nor BIC is a good fit, elbow method is applied. Result is k=3 and the cluster result is as following:
+Try to penish parameter by AIC and BIC. Figure above shows the AIC and BIC or different k values. It is quite similar compated with the result without panalty, as the scale of sum of square error is great larger than panalty on parameters. So minimize AIC or BIC is not a good idea to determine k.
+
+Since AIC nor BIC is a good fit, elbow method is applied. In particular is to find position for maximum second derivative. Result is k=3 and the cluster result is as following:
 
 ```{r}
 K <- which.max(diff(diff(SSW)))+1 #capital K to distinct with previous small k
@@ -111,9 +112,9 @@ data.frame(pc1 = A1_pc[,1], pc2 = A1_pc[,2], label = as.factor(km_pca$cluster)) 
 
 ##kmeans for original data
 
-For compariation similar clustering for original data without pca is performed as well. It is hard to make clear data visualization on high dimension, so just Within Cluster Sum of Square, AIC, BIC are calculated.
+For comparison similar clustering for original data without pca is performed as well. It is hard to make clear data visualization on high dimension, so just Within Cluster Sum of Square, AIC and BIC are calculated.
 
-Concerning the Within Cluster Sum of Squares, the result is quite familiar with clustering after pca. Information could not explained by clusters decreases rapidly when k increases from 1 to 3, and goes flat with further increasing.
+Concerning the Within Cluster Sum of Squares, the result is quite familiar with clustering after pca. Information could not explained by clusters decreases rapidly when k increases from 1 to 3, and goes flat with further increasing of k. Thus the optimal number of cluster should be 3.
 
 ```{r}
 SSW <- rep(NA,7) 
@@ -125,7 +126,7 @@ qplot(c(1:7),SSW)+geom_line()+geom_point()+
        x='number of clusters',y='Within cluster Sum of Squares')
 ```
 
-Penish parameter by AIC and BIC. BIC is found to have a sharp minimal value, as after multiplied by dimension of variables, penalty is at the same scale as sum of squared error.  
+Penish parameter by AIC and BIC. BIC is found to have a sharp minimal value, as penalty is at the same scale as sum of squared error after multiplied by dimension of variables .  
 
 ```{r}
 AIC <- rep(NA,7)
@@ -198,6 +199,8 @@ within clusters sum of squares:
 ```{r}
 SSE_cluster(A1, km$cluster)
 ```
+
+In this perticular case identical cluster result is given, and adjusted rand index equals 1 which implies a perfect fit of the true cluster.
 
 
 #Perform 100 times then compare and summary.:
@@ -305,6 +308,6 @@ It shows that simple kmeans with determinating k by BIC shows better performance
 
 #Further discussion
 
- - Different methods to determinate k are applied to simple kmeans and kmeans after pca, As personally I think BIC would be a better method than elbow method. It is reasonable to use elbow for both if necessary of pca is considered.
+ - Different methods to determinate k are applied to simple kmeans and kmeans after pca, As personally I think BIC would be a better method than elbow method. It is reasonable to use elbow for both if necessity of pca is considered.
 
  - Based on the scatter plot of first two pinciple components, the clusters have different variance, which violates the assumption of kmeans that clusters have constant variance. Method accepting different variance such as Gaussian mixture models could be considered for imporvement.
