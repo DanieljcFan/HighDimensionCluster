@@ -1,7 +1,7 @@
 ---
 title: "HighDimensionCluster"
 author: "Jinchang Fan"
-date: "3/20/2019"
+date: "3/24/2019"
 output: pdf_document
 ---
 
@@ -58,47 +58,48 @@ Based on the scatter plot we can intuitively guess there are three groups, but t
 ```{r}
 A1_pc <- A1 %*% mysvd$v[,1:2]
 qplot(A1_pc[,1],A1_pc[,2])+labs(title ='scatter plot of first two components',x='component 1', y='compoment 2')
+
+
 ```
 
 Concerning the Within Cluster Sum of Squares, the information could not explained by clusters decreases rapidly when k increases from 1 to 3, and goes flat with further increasing. This conclusion is more clear than scatter plot.
 
 ```{r}
-SSW <- rep(NA,10) 
-for(i in 1:10){
+SSW <- rep(NA,7) 
+for(i in 1:7){
   SSW[i] <- kmeans(A1_pc,i)$tot.withinss
 }
-qplot(c(1:10),SSW)+geom_line()+geom_point()+
+qplot(c(1:7),SSW)+geom_line()+geom_point()+
   labs(title='Within Cluster Sum of Squares for optimal number of clusters', 
        x='number of clusters',y='Within Cluster Sum of Squares')
 ```
 
-For a clear optimal choice of k with defined decison role, AIC and BIC are calculated. Figure below shows the AIC and BIC or different k values. there is a clear minimal value for BIC but not for AIC, and the optimal k based on BIC is 3 which is coordinated with our intuitively guess. So $argmin_k(BIC)$ is taken as the strategy for optimal k. 
+Try to penish parameter by AIC and BIC. Figure below shows the AIC and BIC or different k values. It is quite similar compated with the result without panalty, as the scale of sum of square error is great larger than panalty on parameters. So minimize AIC or BIC is not a good idea to determine k.
 
 ```{r}
-AIC <- rep(NA,10)
-BIC <- rep(NA,10)
-for(i in 1:10){
+AIC <- rep(NA,7)
+BIC <- rep(NA,7)
+for(i in 1:7){
   km_temp <- kmeans(A1_pc,i)
-  SSW <- km_temp$tot.withinss
-  m = ncol(km_temp$centers)
-  k = nrow(km_temp$centers)
-  n = length(km_temp$cluster)
-  AIC[i] <- SSW + 2*m*k
-  BIC[i] <- SSW + 2*n*m*k
+  ssw <- km_temp$tot.withinss
+  m <- ncol(km_temp$centers)
+  n <- length(km_temp$cluster)
+  AIC[i] <- ssw + 2*m*i
+  BIC[i] <- ssw + 2*n*m*i
 }
 
-plot_aic <- qplot(c(1:10),AIC)+geom_line()+geom_point()+
+plot_aic <- qplot(c(1:7),AIC)+geom_line()+geom_point()+
   labs(x='number of clusters',y='AIC')
 
-plot_bic <- qplot(c(1:10),BIC)+geom_line()+geom_point()+
+plot_bic <- qplot(c(1:7),BIC)+geom_line()+geom_point()+
   labs(x='number of clusters',y='BIC')
 plot_grid(plot_aic, plot_bic,nrow = 1, labels = c("AIC","BIC"))
 ```
 
-The cluster results:
+Since AIC nor BIC is a good fit, elbow method is applied. Result is k=3 and the cluster result is as following:
 
 ```{r}
-K = which.min(BIC) #capital K to distinct with previous small k
+K <- which.max(diff(diff(SSW)))+1 #capital K to distinct with previous small k
 km_pca <- kmeans(A1_pc,K)
 center <- data.frame(pc1 = km_pca$centers[,1], pc2 = km_pca$centers[,2], label = as.factor(1:K))
 data.frame(pc1 = A1_pc[,1], pc2 = A1_pc[,2], label = as.factor(km_pca$cluster)) %>% 
@@ -110,59 +111,59 @@ data.frame(pc1 = A1_pc[,1], pc2 = A1_pc[,2], label = as.factor(km_pca$cluster)) 
 
 ##kmeans for original data
 
-For compariation we can alse perfom similar clustering for original data without pca. This time we can't make clear data visualization so just Within Cluster Sum of Square, AIC, BIC are calculated.
+For compariation similar clustering for original data without pca is performed as well. It is hard to make clear data visualization on high dimension, so just Within Cluster Sum of Square, AIC, BIC are calculated.
 
+Concerning the Within Cluster Sum of Squares, the result is quite familiar with clustering after pca. Information could not explained by clusters decreases rapidly when k increases from 1 to 3, and goes flat with further increasing.
 
 ```{r}
-SSW <- rep(NA,10) 
-for(i in 1:10){
+SSW <- rep(NA,7) 
+for(i in 1:7){
   SSW[i] <- kmeans(A1,i)$tot.withinss
 }
-qplot(c(1:10),SSW)+geom_line()+geom_point()+
+qplot(c(1:7),SSW)+geom_line()+geom_point()+
   labs(title='Within cluster Sum of Squares for optimal number of clusters', 
        x='number of clusters',y='Within cluster Sum of Squares')
 ```
 
+Penish parameter by AIC and BIC. BIC is found to have a sharp minimal value, as after multiplied by dimension of variables, penalty is at the same scale as sum of squared error.  
 
 ```{r}
-AIC <- rep(NA,10)
-BIC <- rep(NA,10)
-for(i in 1:10){
+AIC <- rep(NA,7)
+BIC <- rep(NA,7)
+for(i in 1:7){
   km_temp <- kmeans(A1,i)
-  SSW <- km_temp$tot.withinss
-  m = ncol(km_temp$centers)
-  k = nrow(km_temp$centers)
-  n = length(km_temp$cluster)
-  AIC[i] <- SSW + 2*m*k
-  BIC[i] <- SSW + 2*n*m*k
+  ssw <- km_temp$tot.withinss
+  m <- ncol(km_temp$centers)
+  n <- length(km_temp$cluster)
+  AIC[i] <- ssw + 2*m*i
+  BIC[i] <- ssw + 2*n*m*i
 }
 
-plot_aic <- qplot(c(1:10),AIC)+geom_line()+geom_point()+
+plot_aic <- qplot(c(1:7),AIC)+geom_line()+geom_point()+
   labs(x='number of clusters',y='AIC')
 
-plot_bic <- qplot(c(1:10),BIC)+geom_line()+geom_point()+
+plot_bic <- qplot(c(1:7),BIC)+geom_line()+geom_point()+
   labs(x='number of clusters',y='BIC')
 plot_grid(plot_aic, plot_bic,nrow = 1, labels = c("AIC","BIC"))
-
 ```
 
 
 
 ```{r}
 K <- which.min(BIC)
-km <- kmeans(A1, 3)
+km <- kmeans(A1, K)
 ```
 
 
 #3. To assess the accuracy, calculate the adjusted rand index and then calculate the within clusters sum of squares. 
 
-##assess the accuracy:
+adjusted rand index for kmeans after pca:
 
 ```{r}
 adj.rand.index(comp1, km_pca$cluster)
-
 ```
 
+within clusters sum of squares:
 
 ```{r}
 #given data and their cluster label, calculate within clusters sum of squares(ss), between cluster ss and total ss. 
@@ -183,16 +184,23 @@ SSE_cluster <- function(X,label){
 }
 
 SSE_cluster(A1, km_pca$cluster)
-SSE_cluster(A1, km$cluster)
 ```
 
+
+adjusted rand index for kmeans after pca:
 
 ```{r}
 adj.rand.index(comp1, km$cluster)
 ```
 
+within clusters sum of squares:
 
-#Perform 100 times:
+```{r}
+SSE_cluster(A1, km$cluster)
+```
+
+
+#Perform 100 times then compare and summary.:
 
 ```{r}
 Trail <- function(){
@@ -216,7 +224,13 @@ Kmean_pca <- function(A1,comp1){
   time0 <- Sys.time()
   mysvd <- svd(A1)
   A1_pc <- A1 %*% mysvd$v[,1:2]
-  km_labels <- kmeans(A1_pc,3)$cluster
+  SSW <- rep(NA,7)
+  for(i in 1:7){
+    km_temp <- kmeans(A1_pc,i)
+    SSW[i] <- km_temp$tot.withinss
+  }
+  K <- which.max(diff(diff(SSW)))+1
+  km_labels <- kmeans(A1_pc,K)$cluster
   time_ <- Sys.time() - time0
   SSE <- SSE_cluster(A1, km_labels)
   randind <- adj.rand.index(comp1, km_labels)
@@ -227,7 +241,17 @@ Kmean_pca <- function(A1,comp1){
 
 Kmean_plain <- function(A1,comp1){
   time0 <- Sys.time()
-  km_labels <- kmeans(A1,3)$cluster
+  BIC <- rep(NA,7)
+  for(i in 1:7){
+    km_temp <- kmeans(A1,i)
+    ssw <- km_temp$tot.withinss
+    m <- ncol(km_temp$centers)
+    n <- length(km_temp$cluster)
+    BIC[i] <- ssw + 2*n*m*i
+  }
+  K <- which.min(BIC)
+  
+  km_labels <- kmeans(A1,K)$cluster
   time_ <- Sys.time() - time0
   SSE <- SSE_cluster(A1, km_labels)
   randind <- adj.rand.index(comp1, km_labels)
@@ -236,17 +260,51 @@ Kmean_plain <- function(A1,comp1){
   return(res)
 }
 
-# t <- 100
-# res <- c()
-# for(i in 1:t){
-#   res <- rbind(res, Trail())
-# }
+t <- 100
+res <- c()
+for(i in 1:t){
+  res <- rbind(res, Trail())
+}
+res <- data.frame(res)
 
 ```
 
+Compare the adjusted rand index for two methods:
 
-#4. Record both metrics. 
+adjusted rand index for kmeans after pca:
 
-Then, create a data visualization summarizing the results. 
+```{r}
+cat('mean: ',mean(res[,1]), 'standard diviation: ', sd(res[,1]))
+```
 
+adjusted rand index for simple kmeans:
 
+```{r}
+cat('mean: ',mean(res[,6]), 'standard diviation: ', sd(res[,6]))
+```
+
+within clusters sum of squares for kmeans after pca:
+
+```{r}
+cat('mean: ',mean(res[,4]), 'standard diviation: ', sd(res[,4]))
+```
+
+within clusters sum of squares for simple kmeans:
+
+```{r}
+cat('mean: ',mean(res[,9]), 'standard diviation: ', sd(res[,9]))
+```
+
+time efficiency of two method:
+
+```{r}
+cat('kmeans after pca: ',mean(res[,5]), 'simple kmeans: ', mean(res[,10]))
+```
+
+It shows that simple kmeans with determinating k by BIC shows better performance on adjusted rand index than kmeans after pca and determinante k by elbow (0.86 over 0.78), with similar standard diviation. While kmeans after pca is better on within clusterss sum of squares (0.33 over 0.26). And keams after pca has better time efficiency.
+
+#Further discussion
+
+ - Different methods to determinate k are applied to simple kmeans and kmeans after pca, As personally I think BIC would be a better method than elbow method. It is reasonable to use elbow for both if necessary of pca is considered.
+
+ - Based on the scatter plot of first two pinciple components, the clusters have different variance, which violates the assumption of kmeans that clusters have constant variance. Method accepting different variance such as Gaussian mixture models could be considered for imporvement.
